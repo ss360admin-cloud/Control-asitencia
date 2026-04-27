@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Asistencia</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:#0a0e1a; --surface:#111827; --surface2:#1a2235; --border:#1e2d45;
+    --accent:#00d4ff; --accent2:#7c3aed; --green:#10b981; --yellow:#f59e0b;
+    --red:#ef4444; --orange:#f97316; --text:#e2e8f0; --muted:#64748b;
+    --font:'Sora',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+  /* LOGIN */
+  #login-screen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.6);position:relative;overflow:hidden;}
+  .login-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+  .login-logo{text-align:center;margin-bottom:32px;}
+  .login-logo .icon{width:64px;height:64px;border-radius:18px;margin:0 auto 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:28px;}
+  .login-logo h1{font-size:20px;font-weight:800;}
+  .login-logo p{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--mono);}
+  .login-field{margin-bottom:16px;}
+  .login-field label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:8px;}
+  .login-input{width:100%;padding:13px 16px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border-color 0.2s;}
+  .login-input:focus{border-color:var(--accent);}
+  .login-input.error{border-color:var(--red);}
+  .pw-wrap{position:relative;}
+  .pw-toggle{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;}
+  .login-btn{width:100%;margin-top:8px;padding:15px;background:linear-gradient(135deg,var(--accent),#0099cc);border:none;border-radius:12px;color:#000;font-family:var(--font);font-size:15px;font-weight:800;cursor:pointer;transition:all 0.2s;}
+  .login-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,212,255,0.3);}
+  .login-error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--red);margin-top:12px;display:none;text-align:center;}
+  .login-error.show{display:block;}
+
+  /* APP */
+  #app{display:none;}
+  .container{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+  .logo{display:flex;align-items:center;gap:12px;}
+  .logo-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .logo h1{font-size:22px;font-weight:800;letter-spacing:-0.5px;}
+  .logo p{font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .header-right{display:flex;align-items:center;gap:16px;}
+  #clock{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--accent);letter-spacing:2px;text-shadow:0 0 20px rgba(0,212,255,0.4);}
+  #date-display{font-size:11px;color:var(--muted);text-align:right;margin-top:2px;font-family:var(--mono);}
+  .user-badge{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 14px;}
+  .user-badge .uavatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;}
+  .user-badge .uname{font-size:13px;font-weight:600;}
+  .user-badge .urole{font-size:10px;color:var(--muted);font-family:var(--mono);}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:6px 12px;cursor:pointer;font-family:var(--font);transition:all 0.2s;}
+  .logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+  /* TABS */
+  .tabs{display:flex;gap:4px;margin-bottom:28px;background:var(--surface);border-radius:14px;padding:6px;border:1px solid var(--border);}
+  .tab{flex:1;padding:10px 16px;border:none;border-radius:10px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;background:transparent;color:var(--muted);}
+  .tab.active{background:var(--surface2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  /* STATS */
+  .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .stat-card.s1::before{background:var(--green);} .stat-card.s2::before{background:var(--yellow);} .stat-card.s3::before{background:var(--orange);} .stat-card.s4::before{background:var(--accent2);}
+  .stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px;}
+  .stat-num{font-size:36px;font-weight:800;font-family:var(--mono);line-height:1;}
+  .stat-num.s1{color:var(--green);} .stat-num.s2{color:var(--yellow);} .stat-num.s3{color:var(--orange);} .stat-num.s4{color:var(--accent2);}
+  .stat-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+
+  /* ADMIN GRID */
+  .marcar-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .empleados-section{background:var(--surface);border-radius:16px;border:1px solid var(--border);overflow:hidden;}
+  .section-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .section-title{font-size:14px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);}
+  .search-box{width:100%;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border-color 0.2s;margin:12px 0;}
+  .search-box:focus{border-color:var(--accent);}
+  .search-wrap{padding:0 16px;}
+  .emp-list{max-height:520px;overflow-y:auto;padding:8px;}
+  .emp-list::-webkit-scrollbar{width:4px;} .emp-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  .emp-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;margin-bottom:4px;}
+  .emp-item:hover{background:var(--surface2);border-color:var(--border);}
+  .emp-item.selected{background:rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.3);}
+  .emp-avatar{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin-right:10px;flex-shrink:0;}
+  .emp-info{flex:1;} .emp-name{font-size:13px;font-weight:600;} .emp-id{font-size:11px;color:var(--muted);font-family:var(--mono);}
+  .emp-status-dots{display:flex;gap:4px;flex-shrink:0;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--border);}
+  .dot.done{background:var(--green);box-shadow:0 0 6px var(--green);}
+
+  /* MARCAJE PANEL */
+  .marcaje-panel{background:var(--surface);border-radius:16px;border:1px solid var(--border);}
+  .no-selection{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:14px;padding:60px 20px;text-align:center;min-height:400px;}
+  .no-selection .icon{font-size:48px;margin-bottom:16px;opacity:0.4;}
+  .emp-detail{padding:24px;display:none;} .emp-detail.visible{display:block;}
+  .detail-header{display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+  .detail-avatar{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;}
+  .detail-name{font-size:20px;font-weight:800;} .detail-id{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+  .marcajes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .marcaje-btn{border:1.5px solid var(--border);border-radius:14px;padding:18px 16px;cursor:pointer;transition:all 0.2s;background:var(--surface2);text-align:left;position:relative;overflow:hidden;}
+  .marcaje-btn:hover:not(.done){transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+  .marcaje-btn.done{opacity:0.5;cursor:not-allowed;border-style:dashed;}
+  .marcaje-btn.active-btn{border-color:var(--accent);background:rgba(0,212,255,0.06);}
+  .marcaje-btn .btn-icon{font-size:24px;margin-bottom:8px;}
+  .marcaje-btn .btn-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);}
+  .marcaje-btn .btn-time{font-size:18px;font-weight:700;font-family:var(--mono);margin-top:4px;color:var(--accent);}
+  .marcaje-btn .btn-time.empty{color:var(--muted);font-size:13px;}
+  .check-mark{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:var(--green);display:none;align-items:center;justify-content:center;font-size:11px;}
+  .marcaje-btn.done .check-mark{display:flex;}
+  .marcar-btn-main{width:100%;margin-top:20px;padding:16px;background:linear-gradient(135deg,var(--accent),#0099cc);border:none;border-radius:12px;color:#000;font-family:var(--font);font-size:15px;font-weight:800;cursor:pointer;transition:all 0.2s;}
+  .marcar-btn-main:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,212,255,0.3);}
+  .marcar-btn-main:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+
+  /* EMPLOYEE VIEW */
+  #emp-view{max-width:520px;margin:0 auto;}
+  .emp-view-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;margin-bottom:20px;}
+  .emp-view-header{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+  .ev-avatar{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;}
+  .ev-name{font-size:18px;font-weight:800;} .ev-id{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:3px;}
+  .ev-marcajes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+
+  /* History */
+  .history-section{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+  .history-header{padding:16px 20px;border-bottom:1px solid var(--border);}
+  .history-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);}
+  .history-list{max-height:300px;overflow-y:auto;}
+  .history-row{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);font-size:13px;}
+  .history-row:last-child{border-bottom:none;}
+  .history-date{font-family:var(--mono);color:var(--muted);font-size:12px;}
+  .history-times{display:flex;gap:6px;flex-wrap:wrap;}
+  .hchip{padding:3px 7px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--mono);}
+  .hchip.ok{background:rgba(16,185,129,0.15);color:var(--green);}
+  .hchip.miss{background:rgba(100,116,139,0.1);color:var(--muted);}
+
+  /* Report */
+  .report-controls{display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap;}
+  .report-controls input[type=date]{padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;}
+  .btn-export{padding:10px 20px;background:var(--green);border:none;border-radius:10px;color:#000;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+  .btn-export:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(16,185,129,0.3);}
+  .btn-clear{padding:10px 20px;background:transparent;border:1px solid var(--red);border-radius:10px;color:var(--red);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;margin-left:auto;}
+  .btn-clear:hover{background:rgba(239,68,68,0.1);}
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;overflow-x:auto;}
+  .report-table{width:100%;border-collapse:collapse;}
+  .report-table th{padding:12px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface);}
+  .report-table td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border);font-family:var(--mono);}
+  .report-table tr:hover td{background:var(--surface2);}
+  .report-table .name-cell{font-family:var(--font);font-weight:600;}
+  .time-chip{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;}
+  .time-chip.ok{background:rgba(16,185,129,0.15);color:var(--green);}
+  .time-chip.miss{background:rgba(100,116,139,0.15);color:var(--muted);}
+
+  /* CAMERA MODAL */
+  .cam-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);display:none;align-items:center;justify-content:center;z-index:2000;flex-direction:column;gap:20px;}
+  .cam-overlay.open{display:flex;}
+  .cam-box{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:24px;width:100%;max-width:420px;text-align:center;}
+  .cam-title{font-size:16px;font-weight:800;margin-bottom:4px;}
+  .cam-sub{font-size:12px;color:var(--muted);margin-bottom:16px;font-family:var(--mono);}
+  .cam-preview-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:16px;}
+  #cam-video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1);}
+  #cam-canvas{display:none;}
+  .cam-preview-img{width:100%;height:100%;object-fit:cover;display:none;}
+  .cam-countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:80px;font-weight:800;color:#fff;text-shadow:0 0 30px rgba(0,0,0,0.8);background:rgba(0,0,0,0.3);border-radius:16px;}
+  .cam-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity 0.1s;border-radius:16px;}
+  .cam-btns{display:flex;gap:10px;}
+  .cam-btn-cancel{flex:1;padding:12px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+  .cam-btn-retake{flex:1;padding:12px;border-radius:10px;background:transparent;border:1px solid var(--yellow);color:var(--yellow);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+  .cam-btn-confirm{flex:2;padding:12px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#0099cc);border:none;color:#000;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;}
+  .cam-btn-confirm:disabled{opacity:0.3;cursor:not-allowed;}
+  .photo-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;cursor:pointer;border:2px solid var(--border);transition:transform 0.2s;vertical-align:middle;}
+  .photo-thumb:hover{transform:scale(1.1);}
+  .photo-viewer{position:fixed;inset:0;background:rgba(0,0,0,0.95);display:none;align-items:center;justify-content:center;z-index:3000;cursor:pointer;flex-direction:column;gap:16px;}
+  .photo-viewer.open{display:flex;}
+  .photo-viewer img{max-width:88vw;max-height:80vh;border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,0.8);transform:scaleX(-1);}
+  .photo-viewer-info{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 20px;font-size:13px;font-weight:600;}
+
+  /* Toast */
+  .toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 20px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;transform:translateY(80px);opacity:0;transition:all 0.3s;box-shadow:0 16px 40px rgba(0,0,0,0.4);}
+  .toast.show{transform:translateY(0);opacity:1;}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px);}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;max-width:400px;width:90%;text-align:center;}
+  .modal h3{font-size:20px;font-weight:800;margin-bottom:8px;} .modal p{color:var(--muted);font-size:14px;margin-bottom:24px;}
+  .modal-btns{display:flex;gap:12px;}
+  .modal-btns button{flex:1;padding:12px;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;border:none;}
+  .btn-cancel{background:var(--surface2);color:var(--text);border:1px solid var(--border)!important;}
+  .btn-confirm{background:var(--red);color:#fff;}
+
+  @media(max-width:900px){
+    .marcar-grid{grid-template-columns:1fr;}
+    .stats-bar{grid-template-columns:repeat(2,1fr);}
+    .ev-marcajes{grid-template-columns:1fr 1fr;}
+    header{flex-direction:column;gap:12px;align-items:flex-start;}
+    .header-right{width:100%;justify-content:space-between;flex-wrap:wrap;}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">⏱</div>
+      <h1>Control de Asistencia</h1>
+      <p>Ingresa con tus credenciales</p>
+    </div>
+    <div class="login-field">
+      <label>Usuario</label>
+      <input class="login-input" id="login-user" type="text" placeholder="tu.usuario" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <div class="pw-wrap">
+        <input class="login-input" id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" style="padding-right:44px">
+        <button class="pw-toggle" onclick="togglePw()">👁</button>
+      </div>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar →</button>
+    <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⏱</div>
+      <div>
+        <h1>Control de Asistencia</h1>
+        <p id="header-sub" style="font-size:12px;color:var(--muted);font-family:var(--mono);">—</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div style="text-align:right">
+        <div id="clock">00:00:00</div>
+        <div id="date-display">—</div>
+      </div>
+      <div class="user-badge">
+        <div class="uavatar" id="u-avatar"></div>
+        <div><div class="uname" id="u-name">—</div><div class="urole" id="u-role">—</div></div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- ADMIN -->
+  <div id="admin-content" style="display:none">
+    <div class="stats-bar">
+      <div class="stat-card s1"><div class="stat-label">Entrada</div><div class="stat-num s1" id="stat-entrada">0</div><div class="stat-sub">de 40 empleados</div></div>
+      <div class="stat-card s2"><div class="stat-label">En almuerzo</div><div class="stat-num s2" id="stat-almuerzo">0</div><div class="stat-sub">salieron a almorzar</div></div>
+      <div class="stat-card s3"><div class="stat-label">Regresaron</div><div class="stat-num s3" id="stat-regreso">0</div><div class="stat-sub">de almuerzo</div></div>
+      <div class="stat-card s4"><div class="stat-label">Salida</div><div class="stat-num s4" id="stat-salida">0</div><div class="stat-sub">terminaron jornada</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('marcaje')">📋 Marcar Asistencia</button>
+      <button class="tab" onclick="switchTab('reporte')">📊 Reporte del Día</button>
+    </div>
+    <div id="panel-marcaje" class="panel active">
+      <div class="marcar-grid">
+        <div class="empleados-section">
+          <div class="section-header">
+            <span class="section-title">Empleados (40)</span>
+            <span id="counter-badge" style="font-size:12px;color:var(--muted);font-family:var(--mono)">0 marcados hoy</span>
+          </div>
+          <div class="search-wrap"><input class="search-box" type="text" placeholder="🔍  Buscar empleado..." id="searchInput" oninput="filterEmps()"></div>
+          <div class="emp-list" id="empList"></div>
+        </div>
+        <div class="marcaje-panel">
+          <div id="no-sel" class="no-selection"><div class="icon">👆</div><div style="font-weight:700;font-size:16px;margin-bottom:8px">Selecciona un empleado</div><div>Haz clic en un nombre para registrar su marcaje</div></div>
+          <div id="emp-detail" class="emp-detail">
+            <div class="detail-header">
+              <div class="detail-avatar" id="detail-avatar"></div>
+              <div><div class="detail-name" id="detail-name">—</div><div class="detail-id" id="detail-id">—</div></div>
+            </div>
+            <div class="marcajes-grid">
+              <div class="marcaje-btn" id="btn-entrada" onclick="selectMarcaje('entrada')"><div class="check-mark">✓</div><div class="btn-icon">🟢</div><div class="btn-label">Entrada</div><div class="btn-time empty" id="time-entrada">Sin marcar</div></div>
+              <div class="marcaje-btn" id="btn-salida-alm" onclick="selectMarcaje('salidaAlmuerzo')"><div class="check-mark">✓</div><div class="btn-icon">🍽️</div><div class="btn-label">Salida almuerzo</div><div class="btn-time empty" id="time-salida-alm">Sin marcar</div></div>
+              <div class="marcaje-btn" id="btn-entrada-alm" onclick="selectMarcaje('entradaAlmuerzo')"><div class="check-mark">✓</div><div class="btn-icon">🔄</div><div class="btn-label">Regreso almuerzo</div><div class="btn-time empty" id="time-entrada-alm">Sin marcar</div></div>
+              <div class="marcaje-btn" id="btn-salida" onclick="selectMarcaje('salida')"><div class="check-mark">✓</div><div class="btn-icon">🔴</div><div class="btn-label">Salida</div><div class="btn-time empty" id="time-salida">Sin marcar</div></div>
+            </div>
+            <button class="marcar-btn-main" id="marcar-btn" onclick="registrarMarcaje()" disabled>Selecciona un tipo de marcaje</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="panel-reporte" class="panel">
+      <div class="report-controls">
+        <input type="date" id="report-date">
+        <button class="btn-export" onclick="exportCSV()">⬇ Exportar Excel</button>
+        <button class="btn-clear" onclick="confirmClear()">🗑 Limpiar Día</button>
+      </div>
+      <div class="table-wrap">
+        <table class="report-table">
+          <thead><tr><th>#</th><th>Empleado</th><th>Entrada</th><th>Sal. Almuerzo</th><th>Reg. Almuerzo</th><th>Salida</th><th>Estado</th></tr></thead>
+          <tbody id="report-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE -->
+  <div id="emp-content" style="display:none">
+    <div id="emp-view">
+      <div class="emp-view-card">
+        <div class="emp-view-header">
+          <div class="ev-avatar" id="ev-avatar"></div>
+          <div><div class="ev-name" id="ev-name">—</div><div class="ev-id" id="ev-id">—</div></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:12px;">Marcajes de hoy</div>
+        <div class="ev-marcajes">
+          <div class="marcaje-btn" id="ev-btn-entrada" onclick="empSelectMarcaje('entrada')"><div class="check-mark">✓</div><div class="btn-icon">🟢</div><div class="btn-label">Entrada</div><div class="btn-time empty" id="ev-time-entrada">Sin marcar</div></div>
+          <div class="marcaje-btn" id="ev-btn-salida-alm" onclick="empSelectMarcaje('salidaAlmuerzo')"><div class="check-mark">✓</div><div class="btn-icon">🍽️</div><div class="btn-label">Salida almuerzo</div><div class="btn-time empty" id="ev-time-salida-alm">Sin marcar</div></div>
+          <div class="marcaje-btn" id="ev-btn-entrada-alm" onclick="empSelectMarcaje('entradaAlmuerzo')"><div class="check-mark">✓</div><div class="btn-icon">🔄</div><div class="btn-label">Regreso almuerzo</div><div class="btn-time empty" id="ev-time-entrada-alm">Sin marcar</div></div>
+          <div class="marcaje-btn" id="ev-btn-salida" onclick="empSelectMarcaje('salida')"><div class="check-mark">✓</div><div class="btn-icon">🔴</div><div class="btn-label">Salida</div><div class="btn-time empty" id="ev-time-salida">Sin marcar</div></div>
+        </div>
+        <button class="marcar-btn-main" id="ev-marcar-btn" onclick="empRegistrarMarcaje()" disabled>Selecciona un tipo de marcaje</button>
+      </div>
+      <div class="history-section">
+        <div class="history-header"><span class="history-title">📅 Historial de asistencia</span></div>
+        <div class="history-list" id="history-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- CAMERA MODAL -->
+<div class="cam-overlay" id="cam-overlay">
+  <div class="cam-box">
+    <div class="cam-title">📸 Verificación de identidad</div>
+    <div class="cam-sub" id="cam-label">Preparando cámara...</div>
+    <div class="cam-preview-wrap">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <canvas id="cam-canvas"></canvas>
+      <img id="cam-photo-preview" class="cam-preview-img">
+      <div class="cam-countdown" id="cam-countdown"></div>
+      <div class="cam-flash" id="cam-flash"></div>
+    </div>
+    <div class="cam-btns" id="cam-btns-preview" style="display:none">
+      <button class="cam-btn-cancel" onclick="closeCam()">Cancelar</button>
+      <button class="cam-btn-retake" onclick="retakePhoto()">🔄 Repetir</button>
+      <button class="cam-btn-confirm" onclick="confirmMarcaje()">✓ Confirmar</button>
+    </div>
+    <div class="cam-btns" id="cam-btns-live">
+      <button class="cam-btn-cancel" onclick="closeCam()">Cancelar</button>
+    </div>
+  </div>
+</div>
+<!-- PHOTO VIEWER -->
+<div class="photo-viewer" id="photo-viewer" onclick="closePhotoViewer()">
+  <img id="photo-viewer-img" src="">
+  <div class="photo-viewer-info" id="photo-viewer-info"></div>
+</div>
+
+<div class="toast" id="toast"><span id="t-icon">✅</span><span id="t-msg">OK</span></div>
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+    <h3>¿Limpiar registros?</h3>
+    <p>Se eliminarán todos los marcajes del día. Esta acción no se puede deshacer.</p>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-confirm" onclick="doClear()">Sí, limpiar</button></div>
+  </div>
+</div>
+
+<script type="module">
+const ADMIN={user:'SSadmin',pass:'SamaSac@Connor1586'};
+const EMPLEADOS=[
+  {id:'E001',name:'Mireya Elizabeth Artero López',      user:'mireya.eal',    pass:'Eal@2026'},
+  {id:'E002',name:'Samael Alexander Contreras Nuñez',   user:'samael.acn',    pass:'Acn@2026'},
+  {id:'E003',name:'Maydelin Vanessa Cubías Pineda',     user:'maydelin.vcp',  pass:'Vcp@2026'},
+  {id:'E004',name:'Diego Emilio Ramírez Gil',           user:'diego.erg',     pass:'Erg@2026'},
+  {id:'E005',name:'Francisco Javier Ramirez Martinez',  user:'francisco.jrm', pass:'Jrm@2026'},
+  {id:'E006',name:'Irene Del Carmen Carranza Ochoa',    user:'irene.dco',     pass:'Dco@2026'},
+  {id:'E007',name:'Magdaleno Elenilson Bernal Guadron', user:'magdaleno.ebg', pass:'Ebg@2026'},
+  {id:'E008',name:'Jose Fernando Zepeda Argueta',       user:'jose.fza',      pass:'Fza@2026'},
+  {id:'E009',name:'Ivania Nicolle Ramirez Gonzalez',    user:'ivania.nrg',    pass:'Nrg@2026'},
+  {id:'E010',name:'Alexandra Estefany Mauricio Carabantes',user:'alexandra.emc',pass:'Emc@2026'},
+  {id:'E011',name:'Nataly Guadalupe Fabián Reyes',      user:'nataly.gfr',    pass:'Gfr@2026'},
+  {id:'E012',name:'Jenifer Alexandra Escamilla',        user:'jenifer.ae',    pass:'Ae@2026'},
+  {id:'E013',name:'Karla Lisseth Alvarado Martinez',    user:'karla.lam',     pass:'Lam@2026'},
+  {id:'E014',name:'Glenda Maria Villanueva Salmeron',   user:'glenda.mvs',    pass:'Mvs@2026'},
+  {id:'E015',name:'Rosa Lisbeth Hernandez Campos',      user:'rosa.lhc',      pass:'Lhc@2026'},
+  {id:'E016',name:'Nathalie Maritza Mojica Diaz',       user:'nathalie.mmd',  pass:'Mmd@2026'},
+  {id:'E017',name:'Victor Manuel Sandoval Alvarado',    user:'victor.msa',    pass:'Msa@2026'},
+  {id:'E018',name:'Gisela Beatriz Segura',              user:'gisela.bs',     pass:'Bs@2026'},
+  {id:'E019',name:'Ruth Abigail Reyes Reyes',           user:'ruth.arr',      pass:'Arr@2026'},
+  {id:'E020',name:'Maria de los Angeles Garcia Ascencio',user:'maria.dga',   pass:'Dga@2026'},
+  {id:'E021',name:'Stefany Gloribel Medina Rivera',     user:'stefany.gmr',   pass:'Gmr@2026'},
+  {id:'E022',name:'Christian Enrique Tejaeda Hernadez', user:'christian.eth', pass:'Eth@2026'},
+  {id:'E023',name:'David Alexander Navarro Lopez',      user:'david.anl',     pass:'Anl@2026'},
+  {id:'E024',name:'Carlos Fernando Mejia Serreno',      user:'carlos.fms',    pass:'Fms@2026'},
+  {id:'E025',name:'Alvaro Antonio Bojorque Lozano',     user:'alvaro.abl',    pass:'Abl@2026'},
+  {id:'E026',name:'Gabriela Azucena Vargas Hernandez',  user:'gabriela.avh',  pass:'Avh@2026'},
+  {id:'E027',name:'Maybelline Aracely Barahona Otero',  user:'maybelline.abo',pass:'Abo@2026'},
+  {id:'E028',name:'Milena de Jesus Aleman Ortiz',       user:'milena.dao',    pass:'Dao@2026'},
+  {id:'E029',name:'Maria Jose Ramirez Quintanilla',     user:'maria.jrq',     pass:'Jrq@2026'},
+  {id:'E030',name:'Empleado 30',user:'empleado.30',pass:'E30@2026'},
+  {id:'E031',name:'Empleado 31',user:'empleado.31',pass:'E31@2026'},
+  {id:'E032',name:'Empleado 32',user:'empleado.32',pass:'E32@2026'},
+  {id:'E033',name:'Empleado 33',user:'empleado.33',pass:'E33@2026'},
+  {id:'E034',name:'Empleado 34',user:'empleado.34',pass:'E34@2026'},
+  {id:'E035',name:'Empleado 35',user:'empleado.35',pass:'E35@2026'},
+  {id:'E036',name:'Empleado 36',user:'empleado.36',pass:'E36@2026'},
+  {id:'E037',name:'Empleado 37',user:'empleado.37',pass:'E37@2026'},
+  {id:'E038',name:'Empleado 38',user:'empleado.38',pass:'E38@2026'},
+  {id:'E039',name:'Empleado 39',user:'empleado.39',pass:'E39@2026'},
+  {id:'E040',name:'Empleado 40',user:'empleado.40',pass:'E40@2026'},
+];
+// ── FIREBASE CONFIG ──────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB4WAOC75wTmYMeZXY7kWeSYO2VuFqLSNM",
+  authDomain: "control-asistencia-87673.firebaseapp.com",
+  projectId: "control-asistencia-87673",
+  storageBucket: "control-asistencia-87673.firebasestorage.app",
+  messagingSenderId: "267437276006",
+  appId: "1:267437276006:web:0e86bea500325e0a6566a7"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+// ─────────────────────────────────────────────────────────────
+
+const COLORS=['#6366f1','#8b5cf6','#ec4899','#f43f5e','#ef4444','#f97316','#f59e0b','#10b981','#06b6d4','#0ea5e9','#3b82f6','#14b8a6'];
+const getColor=id=>COLORS[parseInt(id.slice(1))%COLORS.length];
+const getInitials=name=>name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const todayKey=()=>new Date().toISOString().slice(0,10);
+const nowStr=()=>{const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');};
+
+// ── FIRESTORE HELPERS ─────────────────────────────────────────
+// Cache marcajes en memoria para UI reactiva
+let recordsCache = {};
+
+async function getRecordsRemote(date){
+  const snap = await getDoc(doc(db,'marcajes',date));
+  return snap.exists() ? snap.data() : {};
+}
+
+async function saveRecordsRemote(date, data){
+  await setDoc(doc(db,'marcajes',date), data, {merge:true});
+}
+
+function getRecords(date){ return recordsCache[date] || {}; }
+function saveRecords(date, data){
+  recordsCache[date] = data;
+  saveRecordsRemote(date, data);
+}
+
+async function loadTodayRecords(){
+  const data = await getRecordsRemote(todayKey());
+  recordsCache[todayKey()] = data;
+  return data;
+}
+
+async function loadDateRecords(date){
+  if(recordsCache[date]) return recordsCache[date];
+  const data = await getRecordsRemote(date);
+  recordsCache[date] = data;
+  return data;
+}
+
+// Live listener for admin
+let unsubscribe = null;
+function listenToday(){
+  if(unsubscribe) unsubscribe();
+  unsubscribe = onSnapshot(doc(db,'marcajes',todayKey()), snap=>{
+    recordsCache[todayKey()] = snap.exists() ? snap.data() : {};
+    buildEmpList(document.getElementById('searchInput')?.value||'');
+    updateStats();
+    if(selectedEmpId){
+      const r = getRecords(todayKey())[selectedEmpId]||{};
+      updateMarcajeBtns(r);
+    }
+  });
+}
+
+// Photo helpers — store as base64 inside Firestore doc
+async function savePhotoRemote(empId,date,type,data){
+  try{ await setDoc(doc(db,'fotos',`${empId}_${date}_${type}`),{photo:data,empId,date,type},{merge:true}); }catch(e){}
+}
+async function getPhotoRemote(empId,date,type){
+  try{
+    const snap = await getDoc(doc(db,'fotos',`${empId}_${date}_${type}`));
+    return snap.exists() ? snap.data().photo : null;
+  }catch(e){return null;}
+}
+// ─────────────────────────────────────────────────────────────
+
+let currentUser=null,selectedEmpId=null,selectedType=null,empSelType=null;
+
+// LOGIN
+function togglePw(){const i=document.getElementById('login-pass');i.type=i.type==='password'?'text':'password';}
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('login-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-pass').focus();});
+
+function doLogin(){
+  const u=document.getElementById('login-user').value.trim();
+  const p=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-error');
+  document.getElementById('login-user').classList.remove('error');
+  document.getElementById('login-pass').classList.remove('error');
+  err.classList.remove('show');
+  if(u===ADMIN.user&&p===ADMIN.pass){currentUser={type:'admin'};launchApp();return;}
+  const emp=EMPLEADOS.find(e=>e.user===u&&e.pass===p);
+  if(emp){currentUser={type:'employee',emp};launchApp();return;}
+  document.getElementById('login-user').classList.add('error');
+  document.getElementById('login-pass').classList.add('error');
+  err.classList.add('show');
+  document.getElementById('login-pass').value='';
+}
+
+async function launchApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  // Pre-load today's records from Firestore
+  await loadTodayRecords();
+  if(currentUser.type==='admin'){
+    const av=document.getElementById('u-avatar');
+    av.textContent='SS';av.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';av.style.color='#000';
+    document.getElementById('u-name').textContent='SSadmin';
+    document.getElementById('u-role').textContent='Administrador';
+    document.getElementById('header-sub').textContent='Vista de administrador';
+    document.getElementById('admin-content').style.display='block';
+    document.getElementById('report-date').value=todayKey();
+    listenToday(); // Real-time updates for admin
+    buildEmpList();updateStats();
+  } else {
+    const emp=currentUser.emp;
+    const av=document.getElementById('u-avatar');
+    av.textContent=getInitials(emp.name);av.style.background=getColor(emp.id)+'33';av.style.color=getColor(emp.id);
+    document.getElementById('u-name').textContent=emp.name.split(' ')[0];
+    document.getElementById('u-role').textContent=emp.id+' · Empleado';
+    document.getElementById('header-sub').textContent='Mi asistencia';
+    document.getElementById('emp-content').style.display='block';
+    loadEmpView();
+  }
+}
+
+function doLogout(){
+  currentUser=null;selectedEmpId=null;selectedType=null;empSelType=null;
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('admin-content').style.display='none';
+  document.getElementById('emp-content').style.display='none';
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-error').classList.remove('show');
+}
+
+// CLOCK
+function updateClock(){
+  const n=new Date();
+  const cl=document.getElementById('clock');
+  if(cl)cl.textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  const days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const months=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const dd=document.getElementById('date-display');
+  if(dd)dd.textContent=days[n.getDay()]+', '+n.getDate()+' de '+months[n.getMonth()]+' '+n.getFullYear();
+}
+setInterval(updateClock,1000);updateClock();
+
+// ADMIN
+function buildEmpList(filter=''){
+  const records=getRecords(todayKey());
+  const list=document.getElementById('empList');if(!list)return;
+  const filtered=EMPLEADOS.filter(e=>e.name.toLowerCase().includes((filter||'').toLowerCase())||e.id.includes(filter||''));
+  list.innerHTML=filtered.map(e=>{
+    const r=records[e.id]||{};
+    return `<div class="emp-item ${selectedEmpId===e.id?'selected':''}" onclick="selectEmp('${e.id}')">
+      <div class="emp-avatar" style="background:${getColor(e.id)}22;color:${getColor(e.id)}">${getInitials(e.name)}</div>
+      <div class="emp-info"><div class="emp-name">${e.name}</div><div class="emp-id">${e.id}</div></div>
+      <div class="emp-status-dots">
+        <div class="dot ${r.entrada?'done':''}" title="Entrada"></div>
+        <div class="dot ${r.salidaAlmuerzo?'done':''}" title="Sal. almuerzo"></div>
+        <div class="dot ${r.entradaAlmuerzo?'done':''}" title="Reg. almuerzo"></div>
+        <div class="dot ${r.salida?'done':''}" title="Salida"></div>
+      </div></div>`;
+  }).join('');
+}
+function filterEmps(){buildEmpList(document.getElementById('searchInput').value);}
+
+function selectEmp(id){
+  selectedEmpId=id;selectedType=null;
+  const emp=EMPLEADOS.find(e=>e.id===id);
+  const r=getRecords(todayKey())[id]||{};
+  document.getElementById('no-sel').style.display='none';
+  const det=document.getElementById('emp-detail');det.classList.add('visible');
+  const av=document.getElementById('detail-avatar');
+  av.textContent=getInitials(emp.name);av.style.background=getColor(emp.id)+'22';av.style.color=getColor(emp.id);
+  document.getElementById('detail-name').textContent=emp.name;
+  document.getElementById('detail-id').textContent=emp.id;
+  updateMarcajeBtns(r);buildEmpList(document.getElementById('searchInput').value||'');
+}
+
+const FIELDS=[{key:'entrada',btn:'btn-entrada',time:'time-entrada'},{key:'salidaAlmuerzo',btn:'btn-salida-alm',time:'time-salida-alm'},{key:'entradaAlmuerzo',btn:'btn-entrada-alm',time:'time-entrada-alm'},{key:'salida',btn:'btn-salida',time:'time-salida'}];
+const EV_FIELDS=[{key:'entrada',btn:'ev-btn-entrada',time:'ev-time-entrada'},{key:'salidaAlmuerzo',btn:'ev-btn-salida-alm',time:'ev-time-salida-alm'},{key:'entradaAlmuerzo',btn:'ev-btn-entrada-alm',time:'ev-time-entrada-alm'},{key:'salida',btn:'ev-btn-salida',time:'ev-time-salida'}];
+
+function setBtns(fields,r,resetBtnId){
+  fields.forEach(f=>{
+    const btn=document.getElementById(f.btn),time=document.getElementById(f.time);
+    if(r[f.key]){btn.classList.add('done');btn.classList.remove('active-btn');time.textContent=r[f.key];time.className='btn-time';}
+    else{btn.classList.remove('done','active-btn');time.textContent='Sin marcar';time.className='btn-time empty';}
+  });
+  const rb=document.getElementById(resetBtnId);rb.textContent='Selecciona un tipo de marcaje';rb.disabled=true;
+}
+function updateMarcajeBtns(r){setBtns(FIELDS,r,'marcar-btn');selectedType=null;}
+
+const BTN_MAP={entrada:'btn-entrada',salidaAlmuerzo:'btn-salida-alm',entradaAlmuerzo:'btn-entrada-alm',salida:'btn-salida'};
+const EV_BTN_MAP={entrada:'ev-btn-entrada',salidaAlmuerzo:'ev-btn-salida-alm',entradaAlmuerzo:'ev-btn-entrada-alm',salida:'ev-btn-salida'};
+const LABELS={entrada:'Entrada',salidaAlmuerzo:'Salida a Almuerzo',entradaAlmuerzo:'Regreso de Almuerzo',salida:'Salida'};
+
+function selectMarcaje(type){
+  if(!selectedEmpId)return;
+  if(getRecords(todayKey())[selectedEmpId]?.[type])return;
+  selectedType=type;
+  Object.values(BTN_MAP).forEach(id=>document.getElementById(id).classList.remove('active-btn'));
+  document.getElementById(BTN_MAP[type]).classList.add('active-btn');
+  const btn=document.getElementById('marcar-btn');btn.textContent='✓ Registrar '+LABELS[type];btn.disabled=false;
+}
+
+// CAMERA SYSTEM
+let camStream=null, pendingMarcajeType=null, pendingMarcajeEmpId=null, capturedPhotoData=null;
+
+function openCam(type, empId){
+  pendingMarcajeType=type; pendingMarcajeEmpId=empId; capturedPhotoData=null;
+  const overlay=document.getElementById('cam-overlay');
+  overlay.classList.add('open');
+  document.getElementById('cam-label').textContent='Prepárate... la foto se tomará en 3 segundos';
+  document.getElementById('cam-photo-preview').style.display='none';
+  document.getElementById('cam-video').style.display='block';
+  document.getElementById('cam-btns-preview').style.display='none';
+  document.getElementById('cam-btns-live').style.display='flex';
+  document.getElementById('cam-countdown').style.display='none';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false})
+    .then(stream=>{
+      camStream=stream;
+      const vid=document.getElementById('cam-video');
+      vid.srcObject=stream;
+      vid.onloadedmetadata=()=>{ vid.play(); startCountdown(); };
+    })
+    .catch(()=>{
+      showToast('⚠️','No se pudo acceder a la cámara');
+      closeCam();
+    });
+}
+
+function startCountdown(){
+  let count=3;
+  const cd=document.getElementById('cam-countdown');
+  cd.style.display='flex'; cd.textContent=count;
+  const interval=setInterval(()=>{
+    count--;
+    if(count>0){cd.textContent=count;}
+    else{
+      clearInterval(interval);
+      cd.style.display='none';
+      takePhoto();
+    }
+  },1000);
+}
+
+function takePhoto(){
+  const video=document.getElementById('cam-video');
+  const canvas=document.getElementById('cam-canvas');
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  canvas.getContext('2d').drawImage(video,0,0);
+  capturedPhotoData=canvas.toDataURL('image/jpeg',0.7);
+  // Flash effect
+  const flash=document.getElementById('cam-flash');
+  flash.style.opacity='1';
+  setTimeout(()=>flash.style.opacity='0',150);
+  // Show preview
+  const preview=document.getElementById('cam-photo-preview');
+  preview.src=capturedPhotoData;
+  preview.style.display='block';
+  document.getElementById('cam-video').style.display='none';
+  document.getElementById('cam-label').textContent='¿La foto está bien?';
+  document.getElementById('cam-btns-live').style.display='none';
+  document.getElementById('cam-btns-preview').style.display='flex';
+  stopCamStream();
+}
+
+function retakePhoto(){
+  capturedPhotoData=null;
+  document.getElementById('cam-photo-preview').style.display='none';
+  document.getElementById('cam-video').style.display='block';
+  document.getElementById('cam-btns-preview').style.display='none';
+  document.getElementById('cam-btns-live').style.display='flex';
+  document.getElementById('cam-label').textContent='Prepárate... la foto se tomará en 3 segundos';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false})
+    .then(stream=>{
+      camStream=stream;
+      const vid=document.getElementById('cam-video');
+      vid.srcObject=stream; vid.play();
+      startCountdown();
+    });
+}
+
+function stopCamStream(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+}
+
+function closeCam(){
+  stopCamStream();
+  document.getElementById('cam-overlay').classList.remove('open');
+  pendingMarcajeType=null; pendingMarcajeEmpId=null; capturedPhotoData=null;
+}
+
+function confirmMarcaje(){
+  if(!capturedPhotoData||!pendingMarcajeType)return;
+  const isAdmin=(pendingMarcajeEmpId!==null && pendingMarcajeEmpId!==undefined && currentUser.type==='admin');
+  if(isAdmin){ doSaveMarcaje(pendingMarcajeEmpId, pendingMarcajeType, capturedPhotoData); }
+  else { doSaveEmpMarcaje(pendingMarcajeType, capturedPhotoData); }
+  closeCam();
+}
+
+// PHOTO KEY helpers — now use Firestore
+function photoKey(empId,date,type){ return `${empId}_${date}_${type}`; }
+// Sync cache for photos
+const photoCache={};
+function savePhoto(empId,date,type,data){ photoCache[photoKey(empId,date,type)]=data; savePhotoRemote(empId,date,type,data); }
+function getPhoto(empId,date,type){ return photoCache[photoKey(empId,date,type)]||null; }
+async function loadPhoto(empId,date,type){
+  const k=photoKey(empId,date,type);
+  if(photoCache[k]) return photoCache[k];
+  const p=await getPhotoRemote(empId,date,type);
+  if(p) photoCache[k]=p;
+  return p;
+}
+
+async function doSaveMarcaje(empId, type, photo){
+  const t=nowStr(),date=todayKey(),records=getRecords(date);
+  if(!records[empId])records[empId]={};
+  records[empId][type]=t;
+  saveRecords(date,records);
+  if(photo) savePhotoRemote(empId,date,type,photo);
+  updateMarcajeBtns(records[empId]);
+  buildEmpList(document.getElementById('searchInput').value);
+  updateStats();
+  showToast('✅',`${EMPLEADOS.find(e=>e.id===empId).name} — ${LABELS[type]} a las ${t}`);
+}
+
+async function doSaveEmpMarcaje(type, photo){
+  const emp=currentUser.emp,t=nowStr(),date=todayKey(),records=await loadTodayRecords();
+  if(!records[emp.id])records[emp.id]={};
+  if(records[emp.id][type]){showToast('⚠️','Este marcaje ya fue registrado');return;}
+  records[emp.id][type]=t;
+  saveRecords(date,records);
+  if(photo) savePhotoRemote(emp.id,date,type,photo);
+  refreshEmpMarcajes();buildHistory();
+  showToast('✅',`${LABELS[type]} registrada a las ${t}`);
+}
+
+// PHOTO VIEWER
+function openPhotoViewer(src, info){
+  document.getElementById('photo-viewer-img').src=src;
+  document.getElementById('photo-viewer-info').textContent=info;
+  document.getElementById('photo-viewer').classList.add('open');
+}
+function closePhotoViewer(){ document.getElementById('photo-viewer').classList.remove('open'); }
+
+function registrarMarcaje(){
+  if(!selectedEmpId||!selectedType)return;
+  openCam(selectedType, selectedEmpId);
+}
+
+// EMPLOYEE VIEW
+function loadEmpView(){
+  const emp=currentUser.emp;
+  const av=document.getElementById('ev-avatar');
+  av.textContent=getInitials(emp.name);av.style.background=getColor(emp.id)+'33';av.style.color=getColor(emp.id);
+  document.getElementById('ev-name').textContent=emp.name;
+  document.getElementById('ev-id').textContent=emp.id+' · '+emp.user;
+  refreshEmpMarcajes();buildHistory();
+}
+
+async function refreshEmpMarcajes(){
+  const records=await loadTodayRecords();
+  const r=records[currentUser.emp.id]||{};
+  setBtns(EV_FIELDS,r,'ev-marcar-btn');empSelType=null;
+}
+
+function empSelectMarcaje(type){
+  const r=getRecords(todayKey())[currentUser.emp.id]||{};
+  if(r[type])return;
+  empSelType=type;
+  Object.values(EV_BTN_MAP).forEach(id=>document.getElementById(id).classList.remove('active-btn'));
+  document.getElementById(EV_BTN_MAP[type]).classList.add('active-btn');
+  const btn=document.getElementById('ev-marcar-btn');btn.textContent='📸 Tomar foto y registrar '+LABELS[type];btn.disabled=false;
+}
+
+function empRegistrarMarcaje(){
+  if(!empSelType)return;
+  openCam(empSelType, null);
+}
+
+async function buildHistory(){
+  const emp=currentUser.emp,list=document.getElementById('history-list');
+  list.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Cargando historial...</div>';
+  // Get all marcaje docs from Firestore
+  const snap = await getDocs(collection(db,'marcajes'));
+  const keys=[];
+  snap.forEach(d=>{ if(d.data()[emp.id]) keys.push(d.id); });
+  keys.sort().reverse();
+  if(!keys.length){list.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Sin historial aún</div>';return;}
+  list.innerHTML=keys.map(date=>{
+    const r=(snap.docs.find(d=>d.id===date)?.data()[emp.id])||{};
+    const chip=(v,type)=>{
+      if(!v) return `<span class="hchip miss">—</span>`;
+      const ph=getPhoto(emp.id,date,type);
+      return `<span class="hchip ok" style="cursor:${ph?'pointer':'default'}" ${ph?`onclick="openPhotoViewer('${ph}','${LABELS[type]} · ${v} · ${date}')"`:''} title="${ph?'Ver foto':'Sin foto'}">${v}${ph?' 📷':''}</span>`;
+    };
+    const [y,m,d]=date.split('-');
+    return `<div class="history-row"><span class="history-date">${d}/${m}/${y}</span><div class="history-times">${chip(r.entrada,'entrada')}${chip(r.salidaAlmuerzo,'salidaAlmuerzo')}${chip(r.entradaAlmuerzo,'entradaAlmuerzo')}${chip(r.salida,'salida')}</div></div>`;
+  }).join('');
+}
+
+// STATS / TABS / REPORT
+function updateStats(){
+  const records=getRecords(todayKey());let e=0,sa=0,ra=0,s=0;
+  Object.values(records).forEach(r=>{if(r.entrada)e++;if(r.salidaAlmuerzo)sa++;if(r.entradaAlmuerzo)ra++;if(r.salida)s++;});
+  document.getElementById('stat-entrada').textContent=e;
+  document.getElementById('stat-almuerzo').textContent=sa;
+  document.getElementById('stat-regreso').textContent=ra;
+  document.getElementById('stat-salida').textContent=s;
+  document.getElementById('counter-badge').textContent=`${e} marcados hoy`;
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['marcaje','reporte'][i]===tab));
+  document.getElementById('panel-marcaje').classList.toggle('active',tab==='marcaje');
+  document.getElementById('panel-reporte').classList.toggle('active',tab==='reporte');
+  if(tab==='reporte')buildReport();
+}
+// Alias for report-date change
+document.addEventListener('DOMContentLoaded',()=>{
+  const rd=document.getElementById('report-date');
+  if(rd)rd.addEventListener('change',()=>buildReport());
+});
+
+async function buildReport(){
+  const date=document.getElementById('report-date').value||todayKey();
+  const records=await loadDateRecords(date);
+  document.getElementById('report-body').innerHTML=EMPLEADOS.map((e,i)=>{
+    const r=records[e.id]||{};
+    const chip=(v,type)=>{
+      if(!v) return `<span class="time-chip miss">—</span>`;
+      const ph=getPhoto(e.id,date,type);
+      const thumb=ph?`<img class="photo-thumb" src="${ph}" onclick="openPhotoViewer('${ph}','${e.name} · ${LABELS[type]} · ${v}')" title="Ver foto">`:' <span style="font-size:11px;color:var(--muted)" title="Sin foto">📵</span>';
+      return `<span class="time-chip ok">${v}</span> ${thumb}`;
+    };
+    const count=[r.entrada,r.salidaAlmuerzo,r.entradaAlmuerzo,r.salida].filter(Boolean).length;
+    const estados=['Sin marcar','Entrada','Almuerzo','Regresó','Completo'];
+    const cols=['var(--muted)','var(--green)','var(--yellow)','var(--orange)','var(--accent)'];
+    return `<tr><td style="color:var(--muted)">${String(i+1).padStart(2,'0')}</td><td class="name-cell">${e.name}</td><td>${chip(r.entrada,'entrada')}</td><td>${chip(r.salidaAlmuerzo,'salidaAlmuerzo')}</td><td>${chip(r.entradaAlmuerzo,'entradaAlmuerzo')}</td><td>${chip(r.salida,'salida')}</td><td><span style="color:${cols[count]};font-weight:700;font-size:12px">${estados[count]}</span></td></tr>`;
+  }).join('');
+}
+
+function exportCSV(){
+  const date=document.getElementById('report-date').value||todayKey();
+  const records=getRecords(date);
+  const [y,m,d]=date.split('-');
+  const dateLabel=`${d}/${m}/${y}`;
+
+  // Build data rows
+  const rows=EMPLEADOS.map((e,i)=>{
+    const r=records[e.id]||{};
+    const count=[r.entrada,r.salidaAlmuerzo,r.entradaAlmuerzo,r.salida].filter(Boolean).length;
+    const estados=['Sin marcar','Entrada','En almuerzo','Regresó','Completo'];
+    return [String(i+1).padStart(2,'0'), e.name, r.entrada||'', r.salidaAlmuerzo||'', r.entradaAlmuerzo||'', r.salida||'', estados[count]];
+  });
+
+  // Use SheetJS to create real xlsx
+  const wb=XLSX.utils.book_new();
+
+  // Header rows
+  const wsData=[
+    ['REPORTE DE ASISTENCIA','','','','','',''],
+    [`Fecha: ${dateLabel}`,'','','','','',''],
+    [],
+    ['#','Nombre Completo','Entrada','Salida Almuerzo','Regreso Almuerzo','Salida','Estado'],
+    ...rows
+  ];
+
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols']=[{wch:5},{wch:38},{wch:12},{wch:16},{wch:18},{wch:12},{wch:14}];
+
+  // Merge title cells
+  ws['!merges']=[
+    {s:{r:0,c:0},e:{r:0,c:6}},
+    {s:{r:1,c:0},e:{r:1,c:6}},
+  ];
+
+  XLSX.utils.book_append_sheet(wb,ws,'Asistencia');
+  XLSX.writeFile(wb,`asistencia_${date}.xlsx`);
+}
+
+function confirmClear(){document.getElementById('modal').classList.add('open');}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+async function doClear(){
+  const date=document.getElementById('report-date').value||todayKey();
+  await setDoc(doc(db,'marcajes',date),{});
+  recordsCache[date]={};
+  closeModal();buildReport();updateStats();buildEmpList();
+  if(selectedEmpId)selectEmp(selectedEmpId);
+  showToast('🗑️','Registros eliminados correctamente');
+}
+
+let toastTimer;
+function showToast(icon,msg){
+  clearTimeout(toastTimer);
+  document.getElementById('t-icon').textContent=icon;
+  document.getElementById('t-msg').textContent=msg;
+  const t=document.getElementById('toast');t.classList.add('show');
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>
